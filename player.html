@@ -1,46 +1,61 @@
-<!DOCTYPE html>
+<!-- player.html -->
 <html>
   <head>
     <title>Spotify Player</title>
-    <script src="https://sdk.scdn.co/spotify-player.js"></script>
+    <meta charset="UTF-8" />
   </head>
   <body>
+    <h1>Spotify Player Loading...</h1>
+    <script src="https://sdk.scdn.co/spotify-player.js"></script>
     <script>
-      window.onSpotifyWebPlaybackSDKReady = () => {
-        const urlParams = new URLSearchParams(window.location.search);
-        const token = urlParams.get("token");
-        const trackUri = urlParams.get("trackUri");
+      const urlParams = new URLSearchParams(window.location.search);
+      const token = urlParams.get("token");
+      const trackUri = urlParams.get("trackUri");
 
+      window.onSpotifyWebPlaybackSDKReady = () => {
         const player = new Spotify.Player({
-          name: "Expo Web Player",
+          name: "Web Playback SDK Player",
           getOAuthToken: cb => cb(token),
           volume: 0.5
         });
 
-        player.addListener("ready", ({ device_id }) => {
-          console.log("Ready with Device ID", device_id);
-          fetch(`https://api.spotify.com/v1/me/player/play`, {
-            method: "PUT",
-            body: JSON.stringify({ uris: [trackUri] }),
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`
-            }
-          });
+        player.addListener("ready", async ({ device_id }) => {
+          console.log("Player is ready with device ID", device_id);
+
+          try {
+            // Transfer playback to the Web SDK
+            await fetch("https://api.spotify.com/v1/me/player", {
+              method: "PUT",
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({
+                device_ids: [device_id],
+                play: true
+              })
+            });
+
+            // Play the selected track
+            await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${device_id}`, {
+              method: "PUT",
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({ uris: [trackUri] })
+            });
+
+            console.log("Playback started!");
+          } catch (err) {
+            console.error("Error during playback:", err);
+          }
         });
 
-        player.addListener("initialization_error", ({ message }) =>
-          console.error("init error", message)
-        );
-        player.addListener("authentication_error", ({ message }) =>
-          console.error("auth error", message)
-        );
-        player.addListener("account_error", ({ message }) =>
-          console.error("acct error", message)
-        );
-        player.addListener("playback_error", ({ message }) =>
-          console.error("playback error", message)
-        );
+        player.addListener("initialization_error", e => console.error(e));
+        player.addListener("authentication_error", e => console.error(e));
+        player.addListener("account_error", e => console.error(e));
+        player.addListener("playback_error", e => console.error(e));
 
         player.connect();
       };
